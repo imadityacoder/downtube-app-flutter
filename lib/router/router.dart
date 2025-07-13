@@ -6,10 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Provider for GoRouter
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/main',
+    initialLocation: '/',
     routes: [
       GoRoute(
-        path: '/main',
+        path: '/',
         builder: (context, state) => const HomeScreen(),
       ),
       GoRoute(
