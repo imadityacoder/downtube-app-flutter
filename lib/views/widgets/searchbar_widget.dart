@@ -91,7 +91,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
                   )
                 : const Icon(Icons.search, color: AppColors.primary),
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(vertical: 16),
           ),
         ),
       ),

@@ -1,4 +1,3 @@
-import 'package:downtube_app/core/constants.dart';
 import 'package:downtube_app/views/widgets/searchbar_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -17,9 +16,9 @@ class DowntubeAppbar extends StatelessWidget {
       ),
       child: Container(
         width: MediaQuery.of(context).size.width,
-        height: 240,
+        height: 220,
         decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 20, 110, 74),
+          color: const Color.fromARGB(255, 22, 105, 59),
           borderRadius: const BorderRadius.only(
             bottomLeft: Radius.circular(16),
             bottomRight: Radius.circular(16),
@@ -34,19 +33,20 @@ class DowntubeAppbar extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.only(left: 12, right: 12, bottom: 20),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
                       'assets/images/logo.png',
                       fit: BoxFit.cover,
-                      width: 50,
-                      height: 50,
+                      width: 55,
+                      height: 55,
                     ),
                     Text(
                       "Downtube",
                       style: TextStyle(
                         fontSize: 50,
                         fontWeight: FontWeight.bold,
-                        color: const Color.fromARGB(255, 186, 255, 228),
+                        color: const Color.fromARGB(255, 204, 255, 236),
                         fontFamily: "Poppins",
                       ),
                     ),
