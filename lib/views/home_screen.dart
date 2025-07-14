@@ -14,48 +14,30 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       bottomNavigationBar: DowntubeNavbar(),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.surface.withValues(alpha: 0.8),
-              AppColors.surface.withValues(alpha: 0.5),
-              AppColors.surface.withValues(alpha: 0.8),
-              AppColors.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/bg.jpg'),
+            fit: BoxFit.fitHeight,
           ),
         ),
-        alignment: Alignment.topCenter,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            DowntubeAppbar(),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                width: double.infinity,
-                height:
-                    MediaQuery.of(context).size.height -
-                    280, // Adjust for app bar height
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 10,
-                      offset: Offset(2, 4), // Shadow position
-                    ),
-                  ],
-                ),
-                child: HomeIntroSection(),
-              ),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.surface.withValues(alpha: 0.6),
+                AppColors.surface.withValues(alpha: 0.7),
+                AppColors.surface.withValues(alpha: 0.8),
+                AppColors.surface,
+                AppColors.surface,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ],
+          ),
+          alignment: Alignment.topCenter,
+          child: DowntubeAppbar(),
         ),
       ),
     );
   }
-} 
+}

@@ -18,7 +18,7 @@ class DowntubeNavbar extends ConsumerWidget {
 
         switch (index) {
           case 0:
-            context.go('/main');
+            context.go('/');
             break;
           case 1:
             context.go('/downloads');
