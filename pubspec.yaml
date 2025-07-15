@@ -17,6 +17,9 @@ dependencies:
   flutter_riverpod: ^2.6.1
   http: ^1.4.0
   youtube_explode_dart: ^2.5.1
+  permission_handler: ^12.0.1
+  ffmpeg_kit_flutter_new: ^2.0.0
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

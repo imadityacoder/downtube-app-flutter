@@ -1,7 +1,6 @@
 import 'package:downtube_app/core/constants.dart';
 import 'package:downtube_app/views/widgets/downtube_appbar.dart';
 
-import 'package:downtube_app/views/widgets/downtube_intro.dart';
 import 'package:downtube_app/views/widgets/downtube_navbar.dart';
 
 import 'package:flutter/material.dart';

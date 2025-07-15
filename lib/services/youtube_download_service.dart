@@ -1,0 +1,141 @@
+import 'dart:io';
+import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+
+typedef ProgressCallback = void Function(double progress);
+
+class YoutubeDownloadService {
+  final YoutubeExplode _yt = YoutubeExplode();
+
+  
+
+Future<Directory> _getVideoDir() async {
+  final baseDir = await getExternalStorageDirectory(); // Scoped, safe
+  final videoDir = Directory(p.join(baseDir!.path, 'Downtube/Videos'));
+
+  if (!videoDir.existsSync()) {
+    videoDir.createSync(recursive: true);
+  }
+
+  return videoDir;
+}
+
+Future<Directory> _getAudioDir() async {
+  final baseDir = await getExternalStorageDirectory();
+  final audioDir = Directory(p.join(baseDir!.path, 'Downtube/Audios'));
+
+  if (!audioDir.existsSync()) {
+    audioDir.createSync(recursive: true);
+  }
+
+  return audioDir;
+}
+
+  Future<void> _requestPermissions() async {
+    final status = await Permission.storage.request();
+    if (!status.isGranted) throw Exception("Storage permission denied");
+  }
+
+  Future<String> downloadAudioOnly(String videoId, {ProgressCallback? onProgress}) async {
+    await _requestPermissions();
+    final video = await _yt.videos.get(videoId);
+    final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+    final audio = manifest.audioOnly.withHighestBitrate();
+
+    final audioDir = await _getAudioDir();
+    final fileName = _sanitizeFileName('${video.title}.mp3');
+    final file = File(p.join(audioDir.path, fileName));
+
+    final stream = await _yt.videos.streamsClient.get(audio);
+    final total = audio.size.totalBytes;
+    int received = 0;
+
+    final sink = file.openWrite();
+    await for (final chunk in stream) {
+      received += chunk.length;
+      sink.add(chunk);
+      if (onProgress != null && total != null) {
+        onProgress(received / total);
+      }
+    }
+
+    await sink.flush();
+    await sink.close();
+    return file.path;
+  }
+
+   Future<String> downloadAndMerge(
+    String videoId, {
+    int quality = 720,
+    ProgressCallback? onProgress,
+  }) async {
+    final video = await _yt.videos.get(videoId);
+    final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+
+    // Get streams
+    final videoOnlyList = manifest.videoOnly.toList();
+
+final videoStreamInfo = videoOnlyList.firstWhere(
+  (v) => v.videoResolution.height == quality,
+  orElse: () {
+    videoOnlyList.sort(
+      (a, b) => b.videoResolution.height.compareTo(a.videoResolution.height),
+    );
+    return videoOnlyList.first;
+  },
+);
+
+    final audioStreamInfo = manifest.audioOnly.withHighestBitrate();
+
+    // Prepare paths
+    final appDir = await _getVideoDir();
+    final safeTitle = _sanitizeFileName('${video.title} [$quality p]');
+    final videoPath = p.join(appDir.path, '$safeTitle.video.mp4');
+    final audioPath = p.join(appDir.path, '$safeTitle.audio.mp4');
+    final outputPath = p.join(appDir.path, '$safeTitle.mp4');
+
+    // Download video
+    final videoFile = File(videoPath);
+    final videoStream = await _yt.videos.streamsClient.get(videoStreamInfo);
+    final videoSink = videoFile.openWrite();
+    await videoStream.pipe(videoSink);
+    await videoSink.close();
+
+    onProgress?.call(0.5); // Half done
+
+    // Download audio
+    final audioFile = File(audioPath);
+    final audioStream = await _yt.videos.streamsClient.get(audioStreamInfo);
+    final audioSink = audioFile.openWrite();
+    await audioStream.pipe(audioSink);
+    await audioSink.close();
+
+    onProgress?.call(0.8); // Almost done
+
+    // Mux using FFmpeg
+    final cmd =
+        '-i "$videoPath" -i "$audioPath" -c:v copy -c:a aac -strict experimental "$outputPath"';
+
+    final session = await FFmpegKit.execute(cmd);
+    final returnCode = await session.getReturnCode();
+    if (returnCode?.isValueSuccess() != true) {
+      throw Exception('FFmpeg merge failed');
+    }
+
+    onProgress?.call(1.0); // Done ✅
+
+    // Clean up
+    videoFile.deleteSync();
+    audioFile.deleteSync();
+
+    return outputPath;
+  }
+  void dispose() => _yt.close();
+
+  String _sanitizeFileName(String title) {
+    return title.replaceAll(RegExp(r'[\\/:*?"<>|]'), '').trim();
+  }
+}

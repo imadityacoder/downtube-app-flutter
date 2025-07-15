@@ -1,6 +1,10 @@
+import 'package:downtube_app/models/video_model.dart';
+import 'package:downtube_app/services/youtube_download_service.dart';
+import 'package:downtube_app/viewmodels/downloader_viewmodel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class DownloadBottomSheet extends StatefulWidget {
+class DownloadBottomSheet extends ConsumerStatefulWidget {
   final String title;
   final String videoId;
   final String thumbnailUrl;
@@ -15,10 +19,11 @@ class DownloadBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<DownloadBottomSheet> createState() => _DownloadBottomSheetState();
+  ConsumerState<DownloadBottomSheet> createState() =>
+      _DownloadBottomSheetState();
 }
 
-class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
+class _DownloadBottomSheetState extends ConsumerState<DownloadBottomSheet> {
   String? _selectedFormat;
 
   final List<Map<String, String>> _audioOptions = [
@@ -32,31 +37,71 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
     {"label": "Full HD [1080p]", "value": "video_1080"},
   ];
 
-  // final downloader = YoutubeDownloadService();
+  Future<void> _download(WidgetRef ref) async {
+    if (_selectedFormat == null) return;
 
-  _download() async {
-    // if (_selectedFormat == null) return;
+    // Extract quality from selected format (e.g. "video_720" → 720)
+    int? quality;
+    final format = _selectedFormat!;
+    if (format.startsWith("video_")) {
+      quality = int.tryParse(format.split("_").last);
+    }
 
-    // showDialog(
-    //   context: context,
-    //   barrierDismissible: false,
-    //   builder: (_) => const Center(child: CircularProgressIndicator()),
-    // );
+    // Create a download item
+    final downloadItem = DownloadItem(
+      videoId: widget.videoId,
+      title: widget.title,
+      thumbnailUrl: widget.thumbnailUrl,
+      quality: quality ?? 720, // Default if unknown
+    );
 
-    // try {
-    //   final path = await downloader.download(widget.videoId, _selectedFormat!);
-    //   Navigator.pop(context); // Close loading dialog
-    //   Navigator.pop(context); // Close bottom sheet
+    // Add to viewmodel
+    ref.read(downloadListProvider.notifier).addDownload(downloadItem);
 
-    //   ScaffoldMessenger.of(
-    //     context,
-    //   ).showSnackBar(SnackBar(content: Text('Downloaded to: $path')));
-    // } catch (e) {
-    //   Navigator.pop(context); // Close loading dialog
-    //   ScaffoldMessenger.of(
-    //     context,
-    //   ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    // }
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final service = YoutubeDownloadService();
+
+    try {
+      if (format.startsWith("audio_")) {
+        await service.downloadAudioOnly(
+          widget.videoId,
+          onProgress: (p) {
+            ref
+                .read(downloadListProvider.notifier)
+                .updateProgress(widget.videoId, p);
+          },
+        );
+      } else {
+        await service.downloadAndMerge(
+          widget.videoId,
+          quality: quality ?? 720,
+          onProgress: (p) {
+            ref
+                .read(downloadListProvider.notifier)
+                .updateProgress(widget.videoId, p);
+          },
+        );
+      }
+
+      ref.read(downloadListProvider.notifier).complete(widget.videoId);
+    } catch (e) {
+      ref.read(downloadListProvider.notifier).setError(widget.videoId);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Download error: $e")));
+      print("Download error: $e");
+    } finally {
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+        Navigator.pop(context); // Close sheet
+      }
+    }
   }
 
   @override
@@ -73,7 +118,6 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Top bar drag handle
           Center(
             child: Container(
               width: 50,
@@ -85,8 +129,6 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
               ),
             ),
           ),
-
-          // Thumbnail + Title
           Row(
             children: [
               ClipRRect(
@@ -96,9 +138,9 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
                   width: 140,
                   height: 80,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 160,
-                    height: 100,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 140,
+                    height: 80,
                     color: Colors.grey[400],
                   ),
                 ),
@@ -127,10 +169,7 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
               ),
             ],
           ),
-
           const SizedBox(height: 20),
-
-          // Options List
           Expanded(
             child: ListView(
               children: [
@@ -148,7 +187,6 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
                     title: Text(option["label"]!),
                   ),
                 ),
-
                 const SizedBox(height: 10),
                 const Text(
                   'Video',
@@ -167,20 +205,17 @@ class _DownloadBottomSheetState extends State<DownloadBottomSheet> {
               ],
             ),
           ),
-
-          // Download Button
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: _selectedFormat == null
                   ? Colors.grey[400]
                   : Colors.green[700],
-
               minimumSize: const Size.fromHeight(48),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            onPressed: _selectedFormat == null ? null : _download,
+            onPressed: _selectedFormat == null ? null : () => _download(ref),
             icon: const Icon(Icons.download_rounded),
             label: const Text("Download"),
           ),

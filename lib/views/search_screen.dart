@@ -38,50 +38,76 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref.read(suggestionProvider.notifier).getSuggestions(query);
   }
 
-  String? extractVideoId(String url) {
-    final RegExp regExp = RegExp(
-      r'^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^\s&]+)',
-    );
-    final match = regExp.firstMatch(url);
-    return match?.group(1);
+  String? extractVideoId(String input) {
+    final Uri? uri = Uri.tryParse(input.trim());
+
+    if (uri == null) return null;
+
+    // Case: https://www.youtube.com/watch?v=VIDEO_ID
+    if ((uri.host.contains('youtube.com') ||
+            uri.host.contains('www.youtube.com')) &&
+        uri.queryParameters['v'] != null) {
+      return uri.queryParameters['v'];
+    }
+
+    // Case: https://youtu.be/VIDEO_ID
+    if (uri.host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty
+          ? uri.pathSegments.first.split('?').first
+          : null;
+    }
+
+    // Fallback for direct ID (if user enters just ID)
+    final reg = RegExp(r'^[\w-]{11}$');
+    if (reg.hasMatch(input)) return input;
+
+    return null;
   }
 
   void _onSearchSubmitted(String query) async {
     final videoId = extractVideoId(query.trim());
+    final yt = YoutubeExplode();
 
     if (videoId != null) {
-      // It’s a YouTube URL → fetch video and open bottom sheet
-      final yt = YoutubeExplode();
+      // It's a YouTube link or ID
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
       try {
         final video = await yt.videos.get(videoId);
-        if (context.mounted) {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => DownloadBottomSheet(
-              title: video.title,
-              videoId: video.id.value,
-              thumbnailUrl: video.thumbnails.highResUrl,
-              author: video.author,
-            ),
-          );
-        }
+
+        if (!context.mounted) return;
+        Navigator.pop(context); // Close loading spinner
+
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => DownloadBottomSheet(
+            title: video.title,
+            videoId: video.id.value,
+            thumbnailUrl: video.thumbnails.highResUrl,
+            author: video.author,
+          ),
+        );
       } catch (e) {
         if (context.mounted) {
+          Navigator.pop(context); // Close loading spinner
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text("Invalid video link")));
+          ).showSnackBar(SnackBar(content: Text("Invalid video link!")));
         }
       } finally {
         yt.close();
       }
     } else {
-      // Normal keyword search
+      // Not a link, do normal search
       setState(() => showSuggestions = false);
       ref.read(searchProvider.notifier).search(query);
     }
-    ;
   }
 
   @override
