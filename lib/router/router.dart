@@ -1,5 +1,6 @@
-import 'package:downtube_app/views/home_screen.dart';
-import 'package:downtube_app/views/search_screen.dart';
+import 'package:downtube/views/downloads_screen.dart';
+import 'package:downtube/views/home_screen.dart';
+import 'package:downtube/views/search_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,7 +16,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/downloads',
-        builder: (context, state) => const HomeScreen(),
+        builder: (context, state) => const DownloadsScreen(),
       ),
       GoRoute(
         path: '/settings',

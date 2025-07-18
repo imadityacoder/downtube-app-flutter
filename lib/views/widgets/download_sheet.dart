@@ -1,8 +1,8 @@
-import 'package:downtube_app/models/video_model.dart';
-import 'package:downtube_app/services/youtube_download_service.dart';
-import 'package:downtube_app/viewmodels/downloader_viewmodel.dart';
+import 'package:downtube/core/constants.dart';
+import 'package:downtube/viewmodels/downloader_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class DownloadBottomSheet extends ConsumerStatefulWidget {
   final String title;
@@ -38,69 +38,67 @@ class _DownloadBottomSheetState extends ConsumerState<DownloadBottomSheet> {
   ];
 
   Future<void> _download(WidgetRef ref) async {
-    if (_selectedFormat == null) return;
-
-    // Extract quality from selected format (e.g. "video_720" → 720)
-    int? quality;
-    final format = _selectedFormat!;
-    if (format.startsWith("video_")) {
-      quality = int.tryParse(format.split("_").last);
-    }
-
-    // Create a download item
-    final downloadItem = DownloadItem(
-      videoId: widget.videoId,
-      title: widget.title,
-      thumbnailUrl: widget.thumbnailUrl,
-      quality: quality ?? 720, // Default if unknown
-    );
-
-    // Add to viewmodel
-    ref.read(downloadListProvider.notifier).addDownload(downloadItem);
-
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
-    final service = YoutubeDownloadService();
+    if (_selectedFormat == null) return;
+
+    final format = _selectedFormat!;
+    int? quality;
+
+    // Extract quality if it's a video format
+    if (format.startsWith("video_")) {
+      quality = int.tryParse(format.split("_").last);
+    }
+    context.pop();
+    context.pop();
 
     try {
-      if (format.startsWith("audio_")) {
-        await service.downloadAudioOnly(
-          widget.videoId,
-          onProgress: (p) {
-            ref
-                .read(downloadListProvider.notifier)
-                .updateProgress(widget.videoId, p);
-          },
-        );
-      } else {
-        await service.downloadAndMerge(
-          widget.videoId,
-          quality: quality ?? 720,
-          onProgress: (p) {
-            ref
-                .read(downloadListProvider.notifier)
-                .updateProgress(widget.videoId, p);
-          },
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Started Downloading : ${widget.title}"),
+          backgroundColor: AppColors.accent,
+        ),
+      );
+
+      await ref
+          .read(downloadListProvider.notifier)
+          .download(
+            videoId: widget.videoId,
+            title: widget.title,
+            thumbnailUrl: widget.thumbnailUrl,
+            format: format,
+            onProgress: (progress) {
+              if (mounted) {
+                ref
+                    .read(downloadListProvider.notifier)
+                    .updateProgress(widget.videoId, progress);
+              }
+            },
+          );
 
       ref.read(downloadListProvider.notifier).complete(widget.videoId);
+      // Optional: show success UI
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Download Completed : ${widget.title}"),
+          backgroundColor: AppColors.accent,
+        ),
+      );
     } catch (e) {
       ref.read(downloadListProvider.notifier).setError(widget.videoId);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Download error: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Something went wrong! while downloading ${widget.title}",
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
       print("Download error: $e");
-    } finally {
-      if (mounted) {
-        Navigator.pop(context); // Close loading
-        Navigator.pop(context); // Close sheet
-      }
     }
   }
 
@@ -108,7 +106,7 @@ class _DownloadBottomSheetState extends ConsumerState<DownloadBottomSheet> {
   Widget build(BuildContext context) {
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.65,
+        maxHeight: MediaQuery.of(context).size.height * 0.72,
       ),
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -162,7 +160,10 @@ class _DownloadBottomSheetState extends ConsumerState<DownloadBottomSheet> {
                     const SizedBox(height: 4),
                     Text(
                       widget.author,
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText,
+                      ),
                     ),
                   ],
                 ),
@@ -174,7 +175,12 @@ class _DownloadBottomSheetState extends ConsumerState<DownloadBottomSheet> {
             child: ListView(
               children: [
                 const Text(
-                  'Audio',
+                  'Download as',
+                  style: TextStyle(color: AppColors.secondaryText),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  ' Audio',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 ..._audioOptions.map(
@@ -184,12 +190,15 @@ class _DownloadBottomSheetState extends ConsumerState<DownloadBottomSheet> {
                     onChanged: (val) {
                       setState(() => _selectedFormat = val);
                     },
-                    title: Text(option["label"]!),
+                    title: Text(
+                      option["label"]!,
+                      style: const TextStyle(fontSize: 14),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 10),
+
                 const Text(
-                  'Video',
+                  ' Video',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 ..._videoOptions.map(
@@ -199,7 +208,10 @@ class _DownloadBottomSheetState extends ConsumerState<DownloadBottomSheet> {
                     onChanged: (val) {
                       setState(() => _selectedFormat = val);
                     },
-                    title: Text(option["label"]!),
+                    title: Text(
+                      option["label"]!,
+                      style: const TextStyle(fontSize: 14),
+                    ),
                   ),
                 ),
               ],

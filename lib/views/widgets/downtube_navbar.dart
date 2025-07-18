@@ -1,8 +1,7 @@
-import 'package:downtube_app/viewmodels/navbar_viewmodel.dart';
+import 'package:downtube/viewmodels/navbar_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 
 class DowntubeNavbar extends ConsumerWidget {
   const DowntubeNavbar({super.key});
@@ -21,16 +20,18 @@ class DowntubeNavbar extends ConsumerWidget {
             context.go('/');
             break;
           case 1:
-            context.go('/downloads');
+            context.push('/downloads');
             break;
           case 2:
-            context.go('/settings');
+            context.push('/settings');
             break;
         }
       },
       backgroundColor: Theme.of(context).colorScheme.surface,
       selectedItemColor: Theme.of(context).colorScheme.primary,
-      unselectedItemColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+      unselectedItemColor: Theme.of(
+        context,
+      ).colorScheme.onSurface.withOpacity(0.6),
       elevation: 10,
       type: BottomNavigationBarType.fixed,
       items: const [

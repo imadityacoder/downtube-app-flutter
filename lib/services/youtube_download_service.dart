@@ -1,8 +1,7 @@
 import 'dart:io';
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 typedef ProgressCallback = void Function(double progress);
@@ -10,46 +9,51 @@ typedef ProgressCallback = void Function(double progress);
 class YoutubeDownloadService {
   final YoutubeExplode _yt = YoutubeExplode();
 
-  
+  final Directory baseDir = Directory('/storage/emulated/0/Download/Downtube');
 
-Future<Directory> _getVideoDir() async {
-  final baseDir = await getExternalStorageDirectory(); // Scoped, safe
-  final videoDir = Directory(p.join(baseDir!.path, 'Downtube/Videos'));
+  Future<Directory> _getVideoDir() async {
+    final videoDir = Directory(p.join(baseDir.path, 'media/Downtube Videos'));
 
-  if (!videoDir.existsSync()) {
-    videoDir.createSync(recursive: true);
+    if (!await videoDir.exists()) {
+      await videoDir.create(recursive: true);
+    }
+
+    return videoDir;
   }
 
-  return videoDir;
-}
+  Future<Directory> _getAudioDir() async {
+    final audioDir = Directory(p.join(baseDir.path, 'media'));
 
-Future<Directory> _getAudioDir() async {
-  final baseDir = await getExternalStorageDirectory();
-  final audioDir = Directory(p.join(baseDir!.path, 'Downtube/Audios'));
+    if (!await audioDir.exists()) {
+      await audioDir.create(recursive: true);
+    }
 
-  if (!audioDir.existsSync()) {
-    audioDir.createSync(recursive: true);
+    return audioDir;
   }
-
-  return audioDir;
-}
 
   Future<void> _requestPermissions() async {
     final status = await Permission.storage.request();
     if (!status.isGranted) throw Exception("Storage permission denied");
   }
 
-  Future<String> downloadAudioOnly(String videoId, {ProgressCallback? onProgress}) async {
+  Future<String> downloadAudioOnly(
+    String videoId, {
+    ProgressCallback? onProgress,
+  }) async {
     await _requestPermissions();
+
     final video = await _yt.videos.get(videoId);
     final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+
+    // Use highest bitrate audio stream (usually .webm or .m4a)
     final audio = manifest.audioOnly.withHighestBitrate();
 
     final audioDir = await _getAudioDir();
-    final fileName = _sanitizeFileName('${video.title}.mp3');
+    final ext = audio.container.name; // Use correct extension (.webm or .m4a)
+    final fileName = _sanitizeFileName('${video.title}.$ext');
     final file = File(p.join(audioDir.path, fileName));
 
-    final stream = await _yt.videos.streamsClient.get(audio);
+    final stream = _yt.videos.streamsClient.get(audio);
     final total = audio.size.totalBytes;
     int received = 0;
 
@@ -57,17 +61,19 @@ Future<Directory> _getAudioDir() async {
     await for (final chunk in stream) {
       received += chunk.length;
       sink.add(chunk);
-      if (onProgress != null && total != null) {
+      if (onProgress != null) {
         onProgress(received / total);
       }
     }
 
     await sink.flush();
     await sink.close();
+
     return file.path;
   }
 
-   Future<String> downloadAndMerge(
+  final platform = MethodChannel("downtube/merge");
+  Future<String> downloadAndMerge(
     String videoId, {
     int quality = 720,
     ProgressCallback? onProgress,
@@ -75,64 +81,74 @@ Future<Directory> _getAudioDir() async {
     final video = await _yt.videos.get(videoId);
     final manifest = await _yt.videos.streamsClient.getManifest(videoId);
 
-    // Get streams
     final videoOnlyList = manifest.videoOnly.toList();
-
-final videoStreamInfo = videoOnlyList.firstWhere(
-  (v) => v.videoResolution.height == quality,
-  orElse: () {
-    videoOnlyList.sort(
-      (a, b) => b.videoResolution.height.compareTo(a.videoResolution.height),
+    final videoStreamInfo = videoOnlyList.firstWhere(
+      (v) => v.videoResolution.height == quality,
+      orElse: () {
+        videoOnlyList.sort(
+          (a, b) =>
+              b.videoResolution.height.compareTo(a.videoResolution.height),
+        );
+        return videoOnlyList.first;
+      },
     );
-    return videoOnlyList.first;
-  },
-);
 
-    final audioStreamInfo = manifest.audioOnly.withHighestBitrate();
+    final audioStreamInfo = manifest.audioOnly.firstWhere(
+      (a) => a.container.name.contains('mp4'),
+      orElse: () => throw Exception('No supported audio format found'),
+    );
 
-    // Prepare paths
     final appDir = await _getVideoDir();
     final safeTitle = _sanitizeFileName('${video.title} [$quality p]');
     final videoPath = p.join(appDir.path, '$safeTitle.video.mp4');
     final audioPath = p.join(appDir.path, '$safeTitle.audio.mp4');
     final outputPath = p.join(appDir.path, '$safeTitle.mp4');
 
-    // Download video
-    final videoFile = File(videoPath);
-    final videoStream = await _yt.videos.streamsClient.get(videoStreamInfo);
-    final videoSink = videoFile.openWrite();
-    await videoStream.pipe(videoSink);
-    await videoSink.close();
+    // Download video with progress
+    final videoStream = _yt.videos.streamsClient.get(videoStreamInfo);
+    final videoFile = File(videoPath).openWrite();
+    final videoTotalBytes = videoStreamInfo.size.totalBytes;
+    int videoDownloaded = 0;
 
-    onProgress?.call(0.5); // Half done
-
-    // Download audio
-    final audioFile = File(audioPath);
-    final audioStream = await _yt.videos.streamsClient.get(audioStreamInfo);
-    final audioSink = audioFile.openWrite();
-    await audioStream.pipe(audioSink);
-    await audioSink.close();
-
-    onProgress?.call(0.8); // Almost done
-
-    // Mux using FFmpeg
-    final cmd =
-        '-i "$videoPath" -i "$audioPath" -c:v copy -c:a aac -strict experimental "$outputPath"';
-
-    final session = await FFmpegKit.execute(cmd);
-    final returnCode = await session.getReturnCode();
-    if (returnCode?.isValueSuccess() != true) {
-      throw Exception('FFmpeg merge failed');
+    await for (final data in videoStream) {
+      videoFile.add(data);
+      videoDownloaded += data.length;
+      onProgress?.call(videoDownloaded / videoTotalBytes * 0.4); // 0–0.4
     }
+    await videoFile.close();
 
-    onProgress?.call(1.0); // Done ✅
+    // Download audio with progress
+    final audioStream = _yt.videos.streamsClient.get(audioStreamInfo);
+    final audioFile = File(audioPath).openWrite();
+    final audioTotalBytes = audioStreamInfo.size.totalBytes;
+    int audioDownloaded = 0;
 
-    // Clean up
-    videoFile.deleteSync();
-    audioFile.deleteSync();
+    await for (final data in audioStream) {
+      audioFile.add(data);
+      audioDownloaded += data.length;
+      onProgress?.call(
+        0.4 + (audioDownloaded / audioTotalBytes * 0.4),
+      ); // 0.4–0.8
+    }
+    await audioFile.close();
+
+    // Merge (native)
+    onProgress?.call(0.9); // Optional bump before native merge
+    final result = await platform.invokeMethod('mergeVideoAndAudio', {
+      'videoPath': videoPath,
+      'audioPath': audioPath,
+      'outputPath': outputPath,
+    });
+
+    if (result != true) throw Exception('Native muxing failed');
+    onProgress?.call(1.0);
+
+    File(videoPath).deleteSync();
+    File(audioPath).deleteSync();
 
     return outputPath;
   }
+
   void dispose() => _yt.close();
 
   String _sanitizeFileName(String title) {

@@ -1,4 +1,4 @@
-import 'package:downtube_app/core/constants.dart';
+import 'package:downtube/core/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -62,13 +62,12 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
           onTap: widget.onTap,
           autofocus: true,
           onSubmitted: widget.onSubmitted,
-          style: const TextStyle(color: AppColors.text),
+          style: TextStyle(color: AppColors.text),
           decoration: InputDecoration(
-            hintText: "Search videos...",
-            hintStyle: const TextStyle(
-              color: AppColors.primary,
-              fontSize: 16,
-              fontWeight: FontWeight.w300,
+            hintText: "Search to download or paste a link...",
+            hintStyle: TextStyle(
+              color: AppColors.primary.withValues(alpha: 0.7),
+              fontSize: 14,
             ),
             prefixIcon: widget.readOnly
                 ? const Icon(Icons.download, color: AppColors.primary)

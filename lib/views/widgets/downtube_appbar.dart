@@ -1,4 +1,4 @@
-import 'package:downtube_app/views/widgets/searchbar_widget.dart';
+import 'package:downtube/views/widgets/searchbar_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

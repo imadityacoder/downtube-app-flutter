@@ -1,4 +1,4 @@
-import 'package:downtube_app/services/youtube_search_service.dart';
+import 'package:downtube/services/youtube_search_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 

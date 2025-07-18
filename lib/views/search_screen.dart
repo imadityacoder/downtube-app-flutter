@@ -1,7 +1,8 @@
-import 'package:downtube_app/viewmodels/search_viewmodel.dart';
-import 'package:downtube_app/viewmodels/suggestion_viewmodel.dart';
-import 'package:downtube_app/views/widgets/download_sheet.dart';
-import 'package:downtube_app/views/widgets/searchbar_widget.dart';
+import 'package:downtube/viewmodels/search_viewmodel.dart';
+import 'package:downtube/viewmodels/suggestion_viewmodel.dart';
+import 'package:downtube/views/widgets/download_sheet.dart';
+import 'package:downtube/views/widgets/downtube_navbar.dart';
+import 'package:downtube/views/widgets/searchbar_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -124,6 +125,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         .maybeWhen(data: (data) => data, orElse: () => []);
 
     return Scaffold(
+      bottomNavigationBar: DowntubeNavbar(),
       body: Column(
         children: [
           SearchBarWidget(
@@ -160,6 +162,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 } else {
                   final video = results[index];
                   return InkWell(
+                    radius: 12,
                     child: Container(
                       margin: const EdgeInsets.symmetric(vertical: 8),
                       padding: const EdgeInsets.all(8),
@@ -206,7 +209,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      fontSize: 16,
+                                      fontSize: 15,
                                       color: Colors.black,
                                     ),
                                   ),
